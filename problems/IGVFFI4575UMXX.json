@@ -1,0 +1,69 @@
+{
+  "input_file": "input/IGVFFI4575UMXX.tsv",
+  "total_rows": 3163,
+  "issues": [
+    {
+      "field": "structure",
+      "severity": "warn",
+      "message": "Missing optional columns (will be treated as empty): ['description']",
+      "count": 1,
+      "fix_type": null
+    },
+    {
+      "field": "targeting",
+      "severity": "error",
+      "message": "3,163 rows have invalid targeting value (must be 'True' or 'False', title case): {'TRUE': 2913, 'FALSE': 250}",
+      "count": 3163,
+      "fix_type": "fix_targeting_case"
+    },
+    {
+      "field": "genomic_element",
+      "severity": "error",
+      "message": "2,913 targeting=True rows have empty/NaN genomic_element",
+      "count": 2913,
+      "fix_type": "fix_genomic_element_promoter"
+    },
+    {
+      "field": "intended_target_start",
+      "severity": "warn",
+      "message": "55 targeting rows have intended_target_start > guide_start by \u2264 50 bp (minor boundary effect)",
+      "count": 55,
+      "fix_type": null
+    },
+    {
+      "field": "intended_target_start",
+      "severity": "error",
+      "message": "10 targeting rows have intended_target_start > guide_start by > 50 bp \u2014 target window does not span its guides; worst: [ENSG00000248098 overshoot=20831 bp, ENSG00000204351 overshoot=660 bp, ENSG00000204351 overshoot=626 bp]",
+      "count": 10,
+      "fix_type": "fix_coords_recompute"
+    },
+    {
+      "field": "intended_target_end",
+      "severity": "warn",
+      "message": "44 targeting rows have intended_target_end < guide_end by \u2264 50 bp (minor boundary effect)",
+      "count": 44,
+      "fix_type": null
+    },
+    {
+      "field": "intended_target_end",
+      "severity": "error",
+      "message": "12 targeting rows have intended_target_end < guide_end by > 50 bp \u2014 target window does not span its guides; worst: [ENSG00000243279 overshoot=5915 bp, ENSG00000243279 overshoot=5883 bp, ENSG00000243279 overshoot=5703 bp]",
+      "count": 12,
+      "fix_type": "fix_coords_recompute"
+    },
+    {
+      "field": "intended_target_start",
+      "severity": "error",
+      "message": "318 targeting rows have intended_target coords that do not span all guides in their guide-prefix group \u2014 106 groups affected (likely per-guide assignment instead of per-group); e.g. ['ARL8A', 'AXL', 'BCKDHA', 'CARM1', 'COTL1']",
+      "count": 318,
+      "fix_type": "fix_coords_recompute"
+    },
+    {
+      "field": "description",
+      "severity": "warn",
+      "message": "description column is present but all empty \u2014 recommend filling with guide group name (guide_id stripped of trailing _N)",
+      "count": 3163,
+      "fix_type": "fix_description_from_guide_id"
+    }
+  ]
+}

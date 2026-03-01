@@ -8,12 +8,18 @@ This file captures all domain knowledge needed to fix future IGVF Per-Guide Meta
 ## 1. Spec Overview
 
 **File format:** Tab-separated values (TSV), gzip-compressed, with a header row.
-**18 required columns** (order unspecified, but all must be present):
+**14 required columns + 4 optional columns** (order unspecified):
 
+Required:
 ```
 guide_id, spacer, targeting, type, guide_chr, guide_start, guide_end, strand, pam,
 genomic_element, intended_target_name, intended_target_chr, intended_target_start,
-intended_target_end, putative_target_genes, reporter, imperfect, description
+intended_target_end
+```
+
+Optional (marked `(-)` in spec — may be absent or empty):
+```
+putative_target_genes, reporter, imperfect, description
 ```
 
 **Source spec PDF:** `input/FINAL_FINAL_Format_for_Per_Guide_Metadata_Finalized_11_26_25.pdf`
@@ -24,19 +30,26 @@ intended_target_end, putative_target_genes, reporter, imperfect, description
 
 ### `type`
 - Required for all rows.
-- Must be one of: `"targeting"`, `"safe-targeting"`, `"non-targeting"` (lowercase, exact).
+- Must be one of (full spec enum): `"targeting"`, `"safe-targeting"`, `"non-targeting"`,
+  `"positive control"`, `"negative control"`, `"variant"`.
 - Determines how all other columns are validated.
 
 ### `targeting`
 - Required for all rows.
-- Must be `"true"` or `"false"` (lowercase string).
-- All `type == "safe-targeting"` rows **must** have `targeting == "false"`, regardless of what the input file says.
-- Common failure: input files use `"TRUE"` / `"FALSE"` (uppercase) — must be lowercased.
+- Must be `"True"` or `"False"` (title case — Python boolean string representation).
+- If `type ∈ {"non-targeting", "safe-targeting"}`, `targeting` **must** be `"False"`.
+- If `type == "targeting"`, `targeting` should be `"True"` (warn if not).
+- Common failure: input files use `"TRUE"` / `"FALSE"` (uppercase) or `"true"` / `"false"` (lowercase) — must be title case.
+- Element fields (`guide_chr`, `guide_start`, `guide_end`, `strand`, `pam`, `genomic_element`,
+  `intended_target_name`, `intended_target_chr`, `intended_target_start`, `intended_target_end`)
+  are **required** when `targeting == "True"`, and **not required** (can be empty) when `targeting == "False"`.
 
 ### `genomic_element`
-- Required **only** for `type == "targeting"` rows.
-- Must be empty for `type != "targeting"` rows.
-- Must be `"promoter"` or `"distal element"` for targeting rows.
+- Required when `targeting == "True"`; should be empty when `targeting == "False"`.
+- Full valid enum (per spec): `"variant"`, `"promoter"`, `"enhancer"`, `"insulator"`,
+  `"silencer"`, `"distal element"`, `"splice site"`, `"gene"`.
+- **Preferred value for non-promoter regulatory elements**: `"distal element"` (use this
+  unless a more specific classification like `"enhancer"` is firmly established).
 
 #### Classification rules (applied in order):
 1. `"TSS"` in `description` (case-sensitive substring match) → `"promoter"`
@@ -44,15 +57,14 @@ intended_target_end, putative_target_genes, reporter, imperfect, description
 3. All other targeting rows → `"promoter"`
 
 ### `intended_target_name`
-- Required **only** for `type == "targeting"` rows.
-- Must be empty for non-targeting / safe-targeting rows.
+- Required when `targeting == "True"`; should be empty when `targeting == "False"`.
 - Value depends on `genomic_element`:
-  - `"promoter"`: Must be an Ensembl gene ID matching `^ENSG\d+$`
-  - `"distal element"`: Must be a coordinate string matching `^chr\S+:\d+-\d+$`
+  - `"promoter"`, `"splice site"`, `"gene"`: Ensembl gene ID matching `^ENSG\d+$`
+  - `"enhancer"`, `"insulator"`, `"silencer"`, `"distal element"`: coordinate string `^chr\S+:\d+-\d+$`
+  - `"variant"`: normalized SPDI id
 
 ### `intended_target_chr`
-- Required **only** for `type == "targeting"` rows.
-- Must be empty for non-targeting / safe-targeting rows.
+- Required when `targeting == "True"`; should be empty when `targeting == "False"`.
 - Value: `guide_chr` of the target group (first value in group, should be uniform).
 
 ### `intended_target_start`

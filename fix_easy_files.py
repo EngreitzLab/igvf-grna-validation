@@ -79,10 +79,10 @@ for input_path, output_path in FILES:
     df.loc[ge_empty, "genomic_element"] = "promoter"
     print(f"  genomic_element: filled 'promoter' for {n_ge:,} targeting=True rows")
 
-    # ── Fix 3: add description column if absent ───────────────────────────────
-    if "description" not in df.columns:
-        df["description"] = ""
-        print("  description: added empty column")
+    # ── Fix 3: description — fill with guide group name if missing or all empty ──
+    if "description" not in df.columns or df["description"].str.strip().eq("").all():
+        df["description"] = df["guide_id"].str.replace(r"_\d+$", "", regex=True)
+        print(f"  description: filled with guide group name for {len(df):,} rows")
 
     # ── Fix 4 (IGVFFI4575UMXX only): recompute target coords from guide bounds ─
     if file_id in FILES_NEEDING_COORD_RECOMPUTE:

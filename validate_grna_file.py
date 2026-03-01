@@ -9,7 +9,9 @@ Usage:
     python3 validate_grna_file.py <input_file.tsv.gz>
 """
 
+import argparse
 import gzip
+import json
 import os
 import re
 import sys
@@ -116,12 +118,13 @@ def load_gene_map(gtf_path: str) -> dict:
 
 class Issue:
     def __init__(self, field: str, severity: str, message: str,
-                 count: int = 0, examples: list = None):
+                 count: int = 0, examples: list = None, fix_type: str = None):
         self.field    = field
         self.severity = severity   # "error" or "warn"
         self.message  = message
         self.count    = count
         self.examples = examples or []
+        self.fix_type = fix_type   # str tag or None if no automated fix available
 
     def symbol(self):
         return "✗" if self.severity == "error" else "!"
@@ -130,11 +133,13 @@ class Issue:
 # ── Main validation ───────────────────────────────────────────────────────────
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 validate_grna_file.py <input_file.tsv.gz>")
-        sys.exit(1)
-
-    input_file = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description="Validate an IGVF Per-Guide Metadata TSV/TSV.gz file.")
+    parser.add_argument("input_file", help="Path to the TSV or TSV.gz file to validate")
+    parser.add_argument("--json-out", metavar="FILE",
+                        help="Write machine-readable problem report to this JSON file")
+    args = parser.parse_args()
+    input_file = args.input_file
 
     # Load gene map (used only for context; not needed for format validation)
     if not os.path.exists(GTF_PATH):
@@ -182,6 +187,24 @@ def main():
     }
     if essential & set(missing_required):
         _print_report(input_file, df, issues)
+        if args.json_out:
+            report = {
+                "input_file": input_file,
+                "total_rows": len(df),
+                "issues": [
+                    {
+                        "field":    iss.field,
+                        "severity": iss.severity,
+                        "message":  iss.message,
+                        "count":    iss.count,
+                        "fix_type": iss.fix_type,
+                    }
+                    for iss in issues
+                ],
+            }
+            with open(args.json_out, "w") as jf:
+                json.dump(report, jf, indent=2)
+            print(f"Problem report written to: {args.json_out}", file=sys.stderr)
         return
 
     # Backfill missing optional columns as empty strings
@@ -231,6 +254,7 @@ def main():
             f"{bad_targeting.sum():,} rows have invalid targeting value "
             f"(must be 'True' or 'False', title case): {val_counts}",
             count=int(bad_targeting.sum()),
+            fix_type="fix_targeting_case",
         ))
 
     # ── T3: targeting consistency with type ───────────────────────────────────
@@ -243,6 +267,7 @@ def main():
             f"{nontgt_true.sum():,} non-targeting/safe-targeting rows have targeting='True' "
             f"(spec requires 'False'): {by_type}",
             count=int(nontgt_true.sum()),
+            fix_type="fix_targeting_consistency",
         ))
 
     # Warn: type="targeting" rows should have targeting="True"
@@ -304,6 +329,7 @@ def main():
             "genomic_element", "error",
             f"{ge_empty.sum():,} targeting=True rows have empty/NaN genomic_element",
             count=int(ge_empty.sum()),
+            fix_type="fix_genomic_element_promoter",
         ))
 
     # ── E2: genomic_element must be a valid enum value ────────────────────────
@@ -398,6 +424,7 @@ def main():
                 col, "error",
                 f"{coord_empty.sum():,} targeting=True rows have empty/NaN {col}",
                 count=int(coord_empty.sum()),
+                fix_type="fix_coords_recompute",
             ))
 
         coord_nonempty_nontgt = must_be_empty & ~_is_nan_like(df[col])
@@ -457,6 +484,7 @@ def main():
                 f"by > {COORD_SPAN_WARN_BP} bp — target window does not span its guides; "
                 f"worst: [{worst_str}]",
                 count=int(start_large.sum()),
+                fix_type="fix_coords_recompute",
             ))
 
         # intended_target_end should be ≥ guide_end
@@ -486,6 +514,7 @@ def main():
                 f"by > {COORD_SPAN_WARN_BP} bp — target window does not span its guides; "
                 f"worst: [{worst_str}]",
                 count=int(end_large.sum()),
+                fix_type="fix_coords_recompute",
             ))
 
     # ── P1: putative_target_genes — required for positive controls with
@@ -518,7 +547,38 @@ def main():
                 count=len(bad_ptg),
             ))
 
+    # ── D1: description column — missing or all-empty ─────────────────────────
+    desc_missing = "description" not in df.columns
+    desc_all_empty = not desc_missing and _is_nan_like(df["description"]).all()
+    if desc_missing or desc_all_empty:
+        issues.append(Issue(
+            "description", "warn",
+            "description column is " + ("absent" if desc_missing else "present but all empty")
+            + " — recommend filling with guide group name (guide_id stripped of trailing _N)",
+            count=len(df),
+            fix_type="fix_description_from_guide_id",
+        ))
+
     _print_report(input_file, df, issues)
+
+    if args.json_out:
+        report = {
+            "input_file": input_file,
+            "total_rows": len(df),
+            "issues": [
+                {
+                    "field":    iss.field,
+                    "severity": iss.severity,
+                    "message":  iss.message,
+                    "count":    iss.count,
+                    "fix_type": iss.fix_type,
+                }
+                for iss in issues
+            ],
+        }
+        with open(args.json_out, "w") as jf:
+            json.dump(report, jf, indent=2)
+        print(f"Problem report written to: {args.json_out}", file=sys.stderr)
 
 
 def _print_report(input_file: str, df: pd.DataFrame, issues: list) -> None:
@@ -566,7 +626,7 @@ def _print_report(input_file: str, df: pd.DataFrame, issues: list) -> None:
         "strand", "guide_chr", "guide_start", "guide_end",
         "genomic_element", "intended_target_name",
         "intended_target_chr", "intended_target_start", "intended_target_end",
-        "putative_target_genes",
+        "putative_target_genes", "description",
     ]
     clean = [c for c in all_checked if c not in field_issues]
     if clean:

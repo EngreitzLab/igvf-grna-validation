@@ -517,6 +517,44 @@ def main():
                 fix_type="fix_coords_recompute",
             ))
 
+    # ── C3: per-group coord consistency — target window must span all guides ──────
+    # Groups by guide_id prefix (strip trailing _N) to catch per-guide coord assignment.
+    # Complements C2 (which checks per-row only); C3 checks cross-row within the group.
+    if is_true.any():
+        tdf3 = df[is_true].copy()
+        tdf3["_prefix"] = tdf3["guide_id"].str.replace(r"_\d+$", "", regex=True)
+        tdf3["_gs"] = pd.to_numeric(tdf3["guide_start"], errors="coerce")
+        tdf3["_ge"] = pd.to_numeric(tdf3["guide_end"],   errors="coerce")
+        tdf3["_ts"] = pd.to_numeric(tdf3["intended_target_start"], errors="coerce")
+        tdf3["_te"] = pd.to_numeric(tdf3["intended_target_end"],   errors="coerce")
+
+        grp3 = tdf3.groupby("_prefix", sort=False).agg(
+            _grp_start=("_gs", "min"),
+            _grp_end=("_ge", "max"),
+            _n=("_gs", "count"),
+        )
+        multi = grp3[grp3["_n"] > 1]
+
+        if not multi.empty:
+            tdf3 = tdf3.join(multi[["_grp_start", "_grp_end"]], on="_prefix")
+            has_group = tdf3["_grp_start"].notna()
+            # narrow: target coord starts after group min, or ends before group max
+            narrow = has_group & (
+                (tdf3["_ts"] > tdf3["_grp_start"]) |
+                (tdf3["_te"] < tdf3["_grp_end"])
+            )
+            if narrow.any():
+                n_groups = int(tdf3.loc[narrow, "_prefix"].nunique())
+                examples = tdf3.loc[narrow, "_prefix"].unique().tolist()[:5]
+                issues.append(Issue(
+                    "intended_target_start", "error",
+                    f"{narrow.sum():,} targeting rows have intended_target coords that do not "
+                    f"span all guides in their guide-prefix group — {n_groups} groups affected "
+                    f"(likely per-guide assignment instead of per-group); e.g. {examples}",
+                    count=int(narrow.sum()),
+                    fix_type="fix_coords_recompute",
+                ))
+
     # ── P1: putative_target_genes — required for positive controls with
     #         distal-type genomic_element ────────────────────────────────────
     pc_distal = mask_type["positive control"] & df["genomic_element"].isin(GE_NEEDS_PTG)

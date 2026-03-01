@@ -66,20 +66,26 @@ def fix_genomic_element_promoter(df):
 
 
 def fix_coords_recompute(df):
-    """Recompute intended_target_chr/start/end from guide bounds per target group."""
+    """Recompute intended_target_chr/start/end from guide bounds per guide_id prefix group.
+
+    Groups by the guide_id prefix (stripping trailing _N), which correctly separates
+    TSS1 from TSS2 for the same gene, unlike grouping by intended_target_name alone.
+    """
     is_true = df["targeting"].str.upper() == "TRUE"
     tgt = df.loc[is_true].copy()
+    tgt["_prefix"] = tgt["guide_id"].str.replace(r"_\d+$", "", regex=True)
     tgt["_gs"] = pd.to_numeric(tgt["guide_start"], errors="coerce")
     tgt["_ge"] = pd.to_numeric(tgt["guide_end"], errors="coerce")
-    grp = tgt.groupby("intended_target_name").agg(
+    grp = tgt.groupby("_prefix").agg(
         _chr=("guide_chr", "first"), _start=("_gs", "min"), _end=("_ge", "max")
     )
-    for itn, row in grp.iterrows():
-        mask = is_true & (df["intended_target_name"] == itn)
+    prefix_col = df["guide_id"].str.replace(r"_\d+$", "", regex=True)
+    for prefix, row in grp.iterrows():
+        mask = is_true & (prefix_col == prefix)
         df.loc[mask, "intended_target_chr"]   = row["_chr"]
         df.loc[mask, "intended_target_start"] = int(row["_start"])
         df.loc[mask, "intended_target_end"]   = int(row["_end"])
-    return df, f"recomputed coordinates for {len(grp):,} target groups"
+    return df, f"recomputed coordinates for {len(grp):,} guide-prefix groups"
 
 
 def fix_description_from_guide_id(df):
@@ -109,7 +115,7 @@ FIX_DESCRIPTIONS = {
     "fix_targeting_case":           "Map TRUE→True / FALSE→False (title case per spec)",
     "fix_targeting_consistency":    "Set targeting='False' for non-targeting/safe-targeting rows",
     "fix_genomic_element_promoter": "Fill empty genomic_element with 'promoter' for targeting=True rows",
-    "fix_coords_recompute":         "Recompute intended_target_chr/start/end from guide position min/max",
+    "fix_coords_recompute":         "Recompute intended_target_chr/start/end as min/max of guide positions per guide_id prefix group (spans all guides in the group)",
     "fix_description_from_guide_id": "Fill description with guide group name (guide_id stripped of _N suffix)",
 }
 

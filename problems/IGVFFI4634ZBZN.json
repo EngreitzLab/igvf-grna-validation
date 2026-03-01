@@ -1,0 +1,41 @@
+{
+  "input_file": "input/IGVFFI4634ZBZN.tsv",
+  "total_rows": 305,
+  "issues": [
+    {
+      "field": "structure",
+      "severity": "warn",
+      "message": "Missing optional columns (will be treated as empty): ['description']",
+      "count": 1,
+      "fix_type": null
+    },
+    {
+      "field": "targeting",
+      "severity": "error",
+      "message": "305 rows have invalid targeting value (must be 'True' or 'False', title case): {'TRUE': 280, 'FALSE': 25}",
+      "count": 305,
+      "fix_type": "fix_targeting_case"
+    },
+    {
+      "field": "genomic_element",
+      "severity": "error",
+      "message": "280 targeting=True rows have empty/NaN genomic_element",
+      "count": 280,
+      "fix_type": "fix_genomic_element_promoter"
+    },
+    {
+      "field": "intended_target_start",
+      "severity": "error",
+      "message": "280 targeting rows have intended_target coords that do not span all guides in their guide-prefix group \u2014 56 groups affected (likely per-guide assignment instead of per-group); e.g. ['ADAMTS7', 'ALDH2', 'BMP1', 'CDKN2B', 'COL3A1']",
+      "count": 280,
+      "fix_type": "fix_coords_recompute"
+    },
+    {
+      "field": "description",
+      "severity": "warn",
+      "message": "description column is present but all empty \u2014 recommend filling with guide group name (guide_id stripped of trailing _N)",
+      "count": 305,
+      "fix_type": "fix_description_from_guide_id"
+    }
+  ]
+}

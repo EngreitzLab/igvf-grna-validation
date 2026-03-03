@@ -1,0 +1,3 @@
+guide_id	spacer	targeting	type	guide_chr	guide_start	guide_end	strand	pam	genomic_element	intended_target_name	intended_target_chr	intended_target_start	intended_target_end	description
+g1	ACGT	TRUE	targeting	chr1	100	120	+	NGG	promoter	ENSG000001	chr1	90	130	GENE1_TSS
+s1	TTTT	TRUE	safe-targeting	chr1	200	220	-	NGG	promoter	ENSG000002	chr1	190	230	SAFE1

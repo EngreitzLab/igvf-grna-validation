@@ -1,0 +1,2 @@
+guide_id	spacer	targeting	type	guide_chr	guide_start	guide_end	strand	pam	genomic_element	intended_target_name	intended_target_chr	intended_target_start	intended_target_end
+badnum_1	ACGT	True	targeting	chr1	not_a_number	120	+	NGG	promoter	ENSG000001	chr1	also_bad	130

@@ -91,8 +91,8 @@ def download_gtf(url: str, dest: str) -> None:
 _NAN_STRINGS = {"", "nan", "NaN", "NAN", "na", "NA", "N/A", "n/a", "none", "None", "null", "NULL"}
 
 def _is_nan_like(series: "pd.Series") -> "pd.Series":
-    """Return boolean mask: True where the value is empty or a NaN-equivalent string."""
-    return series.isin(_NAN_STRINGS)
+    """Return boolean mask: True where the value is empty, whitespace-only, or a NaN-equivalent string."""
+    return series.str.strip().isin(_NAN_STRINGS)
 
 
 def load_gene_map(gtf_path: str) -> dict:
@@ -322,6 +322,19 @@ def main():
                     count=int(empty.sum()),
                 ))
 
+    # ── T5b: guide_start / guide_end must be numeric for targeting=True rows ──
+    for col in ["guide_start", "guide_end"]:
+        if col in df.columns:
+            non_empty = is_true & ~_is_nan_like(df[col])
+            non_numeric = non_empty & pd.to_numeric(df[col], errors="coerce").isna()
+            if non_numeric.any():
+                examples = df.loc[non_numeric, col].unique().tolist()[:5]
+                issues.append(Issue(
+                    col, "error",
+                    f"{non_numeric.sum():,} targeting=True rows have non-numeric {col}: {examples}",
+                    count=int(non_numeric.sum()),
+                ))
+
     # ── E1: genomic_element must be non-empty for targeting=True rows ─────────
     ge_empty = is_true & _is_nan_like(df["genomic_element"])
     if ge_empty.any():
@@ -425,6 +438,18 @@ def main():
                 f"{coord_empty.sum():,} targeting=True rows have empty/NaN {col}",
                 count=int(coord_empty.sum()),
                 fix_type="fix_coords_recompute",
+            ))
+
+    # ── C1b: intended_target_start / end must be numeric ─────────────────────
+    for col in ["intended_target_start", "intended_target_end"]:
+        non_empty = is_true & ~_is_nan_like(df[col])
+        non_numeric = non_empty & pd.to_numeric(df[col], errors="coerce").isna()
+        if non_numeric.any():
+            examples = df.loc[non_numeric, col].unique().tolist()[:5]
+            issues.append(Issue(
+                col, "error",
+                f"{non_numeric.sum():,} targeting=True rows have non-numeric {col}: {examples}",
+                count=int(non_numeric.sum()),
             ))
 
         coord_nonempty_nontgt = must_be_empty & ~_is_nan_like(df[col])

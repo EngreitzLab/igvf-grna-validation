@@ -103,8 +103,10 @@ coord_bounds_dict = {
 
 # ── Step 4a: Fix `targeting` boolean (all rows) ───────────────────────────────
 
-df["targeting"] = df["targeting"].str.lower()                    # TRUE→true, FALSE→false
-df.loc[df["type"] == "safe-targeting", "targeting"] = "false"    # safe-targeting must be false
+df["targeting"] = df["targeting"].map(
+    {"TRUE": "True", "True": "True", "FALSE": "False", "False": "False"}
+).fillna(df["targeting"])
+df.loc[df["type"] == "safe-targeting", "targeting"] = "False"    # safe-targeting must be False
 
 
 # ── Step 4b: Set `genomic_element` ───────────────────────────────────────────
@@ -281,8 +283,8 @@ print(f"\nOutput written → {OUTPUT_FILE}")
 
 print("\n=== Summary of changes ===")
 print(f"  Total rows:                {len(df):,}")
-print(f"  targeting = true:          {(df['targeting'] == 'true').sum():,}")
-print(f"  targeting = false:         {(df['targeting'] == 'false').sum():,}")
+print(f"  targeting = True:          {(df['targeting'] == 'True').sum():,}")
+print(f"  targeting = False:         {(df['targeting'] == 'False').sum():,}")
 print(f"  genomic_element=promoter:  {(df['genomic_element'] == 'promoter').sum():,}")
 print(f"  genomic_element=distal:    {(df['genomic_element'] == 'distal element').sum():,}")
 tm = targeting_mask

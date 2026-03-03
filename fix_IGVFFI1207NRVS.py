@@ -86,6 +86,8 @@ def fix_coords_promoter_only(df: pd.DataFrame) -> pd.DataFrame:
 
     prefix_col = df["guide_id"].str.replace(r"_\d+$", "", regex=True)
     for prefix, row in grp.iterrows():
+        if pd.isna(row["_start"]) or pd.isna(row["_end"]):
+            continue  # no valid guide coords for this group; skip
         pmask = mask & (prefix_col == prefix)
         df.loc[pmask, "intended_target_chr"]   = row["_chr"]
         df.loc[pmask, "intended_target_start"] = int(row["_start"])

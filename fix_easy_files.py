@@ -39,6 +39,8 @@ def recompute_target_coords(df):
     )
 
     for itn, row in grp.iterrows():
+        if pd.isna(row["_start"]) or pd.isna(row["_end"]):
+            continue  # no valid guide coords for this group; skip
         mask = is_true & (df["intended_target_name"] == itn)
         df.loc[mask, "intended_target_chr"]   = row["_chr"]
         df.loc[mask, "intended_target_start"] = int(row["_start"])

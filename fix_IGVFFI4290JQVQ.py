@@ -84,6 +84,8 @@ def fix_coords_gene_rows(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     for itn, row in grp.iterrows():
+        if pd.isna(row["_start"]) or pd.isna(row["_end"]):
+            continue  # no valid guide coords for this group; skip
         pmask = mask & (df["intended_target_name"] == itn)
         df.loc[pmask, "intended_target_chr"]   = row["_chr"]
         df.loc[pmask, "intended_target_start"] = int(row["_start"])

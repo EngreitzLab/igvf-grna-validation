@@ -58,6 +58,34 @@ print(f"  {n} rows updated")
 print(f"  genomic_element value_counts now:")
 print(df["genomic_element"].value_counts().to_string())
 
+# ── Fix 3: reclassify 4 unresolvable gene symbols → distal element ───────────
+print("\nFix 3: reclassify unresolvable gene symbols to 'distal element'")
+UNRESOLVABLE = {"AKAP2", "SMIM11B", "LOC391322", "LOC101927497"}
+mask3 = df["intended_target_name"].isin(UNRESOLVABLE)
+print(f"  {mask3.sum()} rows matched (expected 46)")
+
+# Compute coord string from guide bounds for each group
+df["guide_start"] = pd.to_numeric(df["guide_start"], errors="coerce")
+df["guide_end"]   = pd.to_numeric(df["guide_end"],   errors="coerce")
+
+for sym in sorted(UNRESOLVABLE):
+    g = df[mask3 & (df["intended_target_name"] == sym)]
+    if g.empty:
+        print(f"  WARNING: no rows found for {sym}")
+        continue
+    chrom   = g["guide_chr"].iloc[0]
+    w_start = int(g["guide_start"].min())
+    w_end   = int(g["guide_end"].max())
+    coord   = f"{chrom}:{w_start}-{w_end}"
+    idx     = g.index
+    df.loc[idx, "genomic_element"]      = "distal element"
+    df.loc[idx, "intended_target_name"] = coord
+    print(f"  {sym}: {len(idx)} rows → genomic_element='distal element', intended_target_name='{coord}'")
+
+# Restore string type for guide coords (other code expects strings)
+df["guide_start"] = df["guide_start"].astype("Int64").astype(str).replace("<NA>", "")
+df["guide_end"]   = df["guide_end"].astype("Int64").astype(str).replace("<NA>", "")
+
 # ── Write output ──────────────────────────────────────────────────────────────
 df.to_csv(FILE, sep="\t", index=False, compression="gzip")
 size = os.path.getsize(FILE)

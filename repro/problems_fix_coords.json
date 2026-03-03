@@ -1,0 +1,13 @@
+{
+  "input_file": "repro/fix_coords_nan.tsv",
+  "total_rows": 2,
+  "issues": [
+    {
+      "field": "intended_target_start",
+      "severity": "error",
+      "message": "synthetic repro: trigger coordinate recompute",
+      "count": 2,
+      "fix_type": "fix_coords_recompute"
+    }
+  ]
+}

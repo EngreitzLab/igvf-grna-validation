@@ -130,29 +130,24 @@ class Issue:
         return "✗" if self.severity == "error" else "!"
 
 
-# ── Main validation ───────────────────────────────────────────────────────────
+# ── putative_target_genes validator (module-level for testability) ─────────────
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Validate an IGVF Per-Guide Metadata TSV/TSV.gz file.")
-    parser.add_argument("input_file", help="Path to the TSV or TSV.gz file to validate")
-    parser.add_argument("--json-out", metavar="FILE",
-                        help="Write machine-readable problem report to this JSON file")
-    args = parser.parse_args()
-    input_file = args.input_file
+def _ptg_looks_valid(val: str) -> bool:
+    """Return True if val looks like one or more ENSG IDs (or is empty)."""
+    val = val.strip().lstrip("[").rstrip("]")
+    parts = [p.strip().strip('"\'') for p in re.split(r'[,;|]\s*', val) if p.strip().strip('"\'')]
+    return all(ENSG_RE.match(p) for p in parts) if parts else True
 
-    # Load gene map (used only for context; not needed for format validation)
-    if not os.path.exists(GTF_PATH):
-        download_gtf(GTF_URL, GTF_PATH)
-    print("Parsing GENCODE v43 GTF …", file=sys.stderr)
-    gene_map = load_gene_map(GTF_PATH)
-    print(f"  Loaded {len(gene_map):,} gene_name → ENSEMBL mappings", file=sys.stderr)
 
-    # Load input
-    print(f"Reading {input_file} …", file=sys.stderr)
-    df = pd.read_csv(input_file, sep="\t", dtype=str).fillna("")
-    print(f"  {len(df):,} rows loaded", file=sys.stderr)
+# ── Core validation logic ──────────────────────────────────────────────────────
 
+def validate_df(df: pd.DataFrame) -> list:
+    """Run all spec checks on df and return a list of Issue objects.
+
+    df must already have been read with dtype=str and fillna("").
+    Missing optional columns are backfilled as empty strings in-place.
+    Returns early (only S1 issues) if any essential required column is absent.
+    """
     issues = []
 
     # ── S1: Required and optional columns ─────────────────────────────────────
@@ -186,26 +181,7 @@ def main():
         "guide_chr", "guide_start", "guide_end", "guide_id", "spacer",
     }
     if essential & set(missing_required):
-        _print_report(input_file, df, issues)
-        if args.json_out:
-            report = {
-                "input_file": input_file,
-                "total_rows": len(df),
-                "issues": [
-                    {
-                        "field":    iss.field,
-                        "severity": iss.severity,
-                        "message":  iss.message,
-                        "count":    iss.count,
-                        "fix_type": iss.fix_type,
-                    }
-                    for iss in issues
-                ],
-            }
-            with open(args.json_out, "w") as jf:
-                json.dump(report, jf, indent=2)
-            print(f"Problem report written to: {args.json_out}", file=sys.stderr)
-        return
+        return issues
 
     # Backfill missing optional columns as empty strings
     for col in OPTIONAL_COLUMNS:
@@ -430,6 +406,7 @@ def main():
         ))
 
     # ── C1: intended_target_chr/start/end required for targeting=True ─────────
+    #        and must be empty for non-targeting rows
     for col in ["intended_target_chr", "intended_target_start", "intended_target_end"]:
         coord_empty = is_true & _is_nan_like(df[col])
         if coord_empty.any():
@@ -438,6 +415,15 @@ def main():
                 f"{coord_empty.sum():,} targeting=True rows have empty/NaN {col}",
                 count=int(coord_empty.sum()),
                 fix_type="fix_coords_recompute",
+            ))
+
+        coord_nonempty_nontgt = must_be_empty & ~_is_nan_like(df[col])
+        if coord_nonempty_nontgt.any():
+            issues.append(Issue(
+                col, "error",
+                f"{coord_nonempty_nontgt.sum():,} non-targeting rows have non-empty {col} "
+                f"(must be empty or NaN for type='non-targeting')",
+                count=int(coord_nonempty_nontgt.sum()),
             ))
 
     # ── C1b: intended_target_start / end must be numeric ─────────────────────
@@ -450,15 +436,6 @@ def main():
                 col, "error",
                 f"{non_numeric.sum():,} targeting=True rows have non-numeric {col}: {examples}",
                 count=int(non_numeric.sum()),
-            ))
-
-        coord_nonempty_nontgt = must_be_empty & ~_is_nan_like(df[col])
-        if coord_nonempty_nontgt.any():
-            issues.append(Issue(
-                col, "error",
-                f"{coord_nonempty_nontgt.sum():,} non-targeting rows have non-empty {col} "
-                f"(must be empty or NaN for type='non-targeting')",
-                count=int(coord_nonempty_nontgt.sum()),
             ))
 
     # ── C2: coordinate consistency for targeting=True rows ────────────────────
@@ -593,11 +570,6 @@ def main():
         ))
 
     # Warn: non-empty putative_target_genes values don't look like ENSG IDs
-    def _ptg_looks_valid(val: str) -> bool:
-        val = val.strip().lstrip("[").rstrip("]")
-        parts = [p.strip().strip('"\'') for p in re.split(r'[,;|]\s*', val) if p.strip().strip('"\'')]
-        return all(ENSG_RE.match(p) for p in parts) if parts else True
-
     ptg_filled = df[df["putative_target_genes"] != ""]
     if not ptg_filled.empty:
         bad_ptg = ptg_filled[~ptg_filled["putative_target_genes"].apply(_ptg_looks_valid)]
@@ -621,6 +593,34 @@ def main():
             count=len(df),
             fix_type="fix_description_from_guide_id",
         ))
+
+    return issues
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Validate an IGVF Per-Guide Metadata TSV/TSV.gz file.")
+    parser.add_argument("input_file", help="Path to the TSV or TSV.gz file to validate")
+    parser.add_argument("--json-out", metavar="FILE",
+                        help="Write machine-readable problem report to this JSON file")
+    args = parser.parse_args()
+    input_file = args.input_file
+
+    # Load gene map (informational only; not required by validation checks)
+    if not os.path.exists(GTF_PATH):
+        download_gtf(GTF_URL, GTF_PATH)
+    print("Parsing GENCODE v43 GTF …", file=sys.stderr)
+    gene_map = load_gene_map(GTF_PATH)
+    print(f"  Loaded {len(gene_map):,} gene_name → ENSEMBL mappings", file=sys.stderr)
+
+    # Load input
+    print(f"Reading {input_file} …", file=sys.stderr)
+    df = pd.read_csv(input_file, sep="\t", dtype=str).fillna("")
+    print(f"  {len(df):,} rows loaded", file=sys.stderr)
+
+    issues = validate_df(df)
 
     _print_report(input_file, df, issues)
 

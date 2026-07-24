@@ -23,6 +23,9 @@ import requests
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 COORD_SPAN_WARN_BP = 50   # overshoot ≤ this → warn; > this → error
+C3_MAX_ELEMENT_BP = 10_000  # C3: a guide_id-prefix group wider than this (or spanning
+                            # >1 chromosome) is not a real element — the prefix does not
+                            # encode elements (e.g. "..._Random_Screen_Crop_<N>"), so skip it
 
 GTF_PATH = "input/IGVFFI9573KOZR.gtf.gz"
 GTF_URL  = ("https://api.data.igvf.org/reference-files/IGVFFI9573KOZR/"
@@ -520,8 +523,14 @@ def validate_df(df: pd.DataFrame) -> list:
             ))
 
     # ── C3: per-group coord consistency — target window must span all guides ──────
-    # Groups by guide_id prefix (strip trailing _N) to catch per-guide coord assignment.
-    # Complements C2 (which checks per-row only); C3 checks cross-row within the group.
+    # Groups by guide_id prefix (strip trailing _N) to catch per-guide coord assignment
+    # in libraries whose guide_id ENCODES the element (e.g. "GENE1_TSS_1", "9p21_add_X_1").
+    # A prefix group is only treated as a real element when its guides sit on ONE
+    # chromosome within a plausible element span (≤ C3_MAX_ELEMENT_BP); otherwise the
+    # prefix is not element-encoding — e.g. "K562_Random_Screen_Crop_<N>" collapses the
+    # whole genome-wide library into one prefix — and the group is skipped instead of
+    # emitting a spurious "does not span all guides" error. Complements C2 (per-row);
+    # honours the same COORD_SPAN_WARN_BP boundary tolerance for edge-guide overhang.
     if is_true.any():
         tdf3 = df[is_true].copy()
         tdf3["_prefix"] = tdf3["guide_id"].str.replace(r"_\d+$", "", regex=True)
@@ -534,16 +543,19 @@ def validate_df(df: pd.DataFrame) -> list:
             _grp_start=("_gs", "min"),
             _grp_end=("_ge", "max"),
             _n=("_gs", "count"),
+            _nchr=("guide_chr", "nunique"),
         )
-        multi = grp3[grp3["_n"] > 1]
+        # keep only prefixes that plausibly denote a single genomic element
+        real = grp3[(grp3["_n"] > 1) & (grp3["_nchr"] == 1)
+                    & ((grp3["_grp_end"] - grp3["_grp_start"]) <= C3_MAX_ELEMENT_BP)]
 
-        if not multi.empty:
-            tdf3 = tdf3.join(multi[["_grp_start", "_grp_end"]], on="_prefix")
+        if not real.empty:
+            tdf3 = tdf3.join(real[["_grp_start", "_grp_end"]], on="_prefix")
             has_group = tdf3["_grp_start"].notna()
-            # narrow: target coord starts after group min, or ends before group max
+            # narrow: window starts > group min (or ends < group max) beyond the tolerance
             narrow = has_group & (
-                (tdf3["_ts"] > tdf3["_grp_start"]) |
-                (tdf3["_te"] < tdf3["_grp_end"])
+                ((tdf3["_ts"] - tdf3["_grp_start"]) > COORD_SPAN_WARN_BP) |
+                ((tdf3["_grp_end"] - tdf3["_te"]) > COORD_SPAN_WARN_BP)
             )
             if narrow.any():
                 n_groups = int(tdf3.loc[narrow, "_prefix"].nunique())

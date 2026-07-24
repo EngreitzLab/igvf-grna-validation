@@ -48,7 +48,7 @@ python3 validate_grna_file.py <input_file.tsv.gz> --json-out problems.json
 | N3 | intended_target_name | Must be empty for `non-targeting` rows |
 | C1 | intended_target_chr/start/end | Non-empty for targeting rows |
 | C2 | intended_target_chr/start/end | Target window must contain the guide position (per-row check) |
-| C3 | intended_target_start/end | Target window must span all guides in a guide-prefix group (cross-row check) |
+| C3 | intended_target_start/end | Target window must span all guides in a guide-prefix group (cross-row check). Only groups that plausibly denote one element — same chromosome, span ≤ `C3_MAX_ELEMENT_BP`, honouring the `COORD_SPAN_WARN_BP` edge tolerance — are checked; a uniform prefix that collapses a whole genome-wide library into one group (e.g. `*_Random_Screen_Crop_<N>`) is skipped rather than falsely flagged |
 | P1 | putative_target_genes | Required for `positive control` rows with a distal-type element |
 | D1 | description | Warns if column is absent or all-empty |
 

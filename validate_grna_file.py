@@ -142,6 +142,14 @@ def _ptg_looks_valid(val: str) -> bool:
     return all(ENSG_RE.match(p) for p in parts) if parts else True
 
 
+def _ptg_is_array(val: str) -> bool:
+    """Return True if a non-empty putative_target_genes value is a JSON array literal.
+    The spec types this field as string[], so a single gene must still be written as
+    ["ENSG00000204531"] (or ["ENSG1", "ENSG2"]), not a bare ENSG00000204531."""
+    val = val.strip()
+    return val.startswith("[") and val.endswith("]")
+
+
 # ── Core validation logic ──────────────────────────────────────────────────────
 
 def validate_df(df: pd.DataFrame) -> list:
@@ -581,8 +589,22 @@ def validate_df(df: pd.DataFrame) -> list:
             count=int(ptg_empty_pc.sum()),
         ))
 
-    # Warn: non-empty putative_target_genes values don't look like ENSG IDs
+    # P1b: non-empty putative_target_genes must be a JSON array literal (spec: string[]).
+    # A bare "ENSG00000204531" must be written as ["ENSG00000204531"].
     ptg_filled = df[df["putative_target_genes"] != ""]
+    if not ptg_filled.empty:
+        not_array = ptg_filled[~ptg_filled["putative_target_genes"].apply(_ptg_is_array)]
+        if not not_array.empty:
+            examples = not_array["putative_target_genes"].unique().tolist()[:5]
+            issues.append(Issue(
+                "putative_target_genes", "error",
+                f"{len(not_array):,} rows have putative_target_genes that is not a JSON array "
+                f'(spec types it as string[]); wrap as ["ENSG..."]: {examples}',
+                count=len(not_array),
+                fix_type="fix_ptg_wrap_array",
+            ))
+
+    # Warn: non-empty putative_target_genes values don't look like ENSG IDs
     if not ptg_filled.empty:
         bad_ptg = ptg_filled[~ptg_filled["putative_target_genes"].apply(_ptg_looks_valid)]
         if not bad_ptg.empty:

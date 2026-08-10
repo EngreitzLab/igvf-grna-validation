@@ -583,9 +583,16 @@ def test_p1_positive_control_distal_empty_ptg_is_error():
 
 
 def test_p1_positive_control_distal_valid_ptg_clean():
-    df = df_from(make_pc_row(putative_target_genes="ENSG00000000003"))
+    df = df_from(make_pc_row(putative_target_genes='["ENSG00000000003"]'))
     issues = validate_df(df)
     assert not errors(issues, "putative_target_genes")
+
+
+def test_p1_ptg_bare_value_not_array_is_error():
+    # spec types putative_target_genes as string[]; a bare ENSG id must be an array literal
+    df = df_from(make_pc_row(putative_target_genes="ENSG00000000003"))
+    issues = validate_df(df)
+    assert has_error(issues, "putative_target_genes", "array")
 
 
 def test_p1_positive_control_promoter_no_ptg_required():
@@ -597,14 +604,14 @@ def test_p1_positive_control_promoter_no_ptg_required():
     assert not has_error(issues, "putative_target_genes", "positive control")
 
 
-def test_p1_ptg_multiple_ensg_comma_separated_clean():
-    df = df_from(make_pc_row(putative_target_genes="ENSG00000000003,ENSG00000000004"))
+def test_p1_ptg_multiple_ensg_array_clean():
+    df = df_from(make_pc_row(putative_target_genes='["ENSG00000000003", "ENSG00000000004"]'))
     issues = validate_df(df)
     assert not errors(issues, "putative_target_genes")
 
 
 def test_p1_ptg_non_ensg_value_warns():
-    df = df_from(make_pc_row(putative_target_genes="TP53"))
+    df = df_from(make_pc_row(putative_target_genes='["TP53"]'))
     issues = validate_df(df)
     assert has_warning(issues, "putative_target_genes", "ENSG")
 

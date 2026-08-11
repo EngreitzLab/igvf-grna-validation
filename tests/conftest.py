@@ -100,7 +100,7 @@ def make_pc_row(**overrides) -> dict:
         "intended_target_chr":    "chr3",
         "intended_target_start":  "1900",
         "intended_target_end":    "2100",
-        "putative_target_genes":  "ENSG00000000003",
+        "putative_target_genes":  '["ENSG00000000003"]',
         "description":            "ENH_ctrl",
     }
     base.update(overrides)

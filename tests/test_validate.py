@@ -533,6 +533,45 @@ def test_c3_per_group_coords_clean():
     assert not has_error(issues, "intended_target_start", "span all guides")
 
 
+def test_c3_uniform_prefix_multichrom_not_flagged():
+    # Random-screen naming: after stripping _N the guide_id collapses to one prefix
+    # ("Lib_Crop") spanning multiple chromosomes — the prefix does NOT encode elements,
+    # so C3 must not emit a spurious span error. Regression for the released
+    # *_Random_Screen_Crop_<N> guide files (K562 IGVFFI7272YLVI / WTC11 IGVFFI0580WJFK).
+    rows = [
+        make_row(guide_id="Lib_Crop_1", guide_chr="chr1", guide_start="1000",
+                 guide_end="1020", intended_target_start="1000", intended_target_end="1020"),
+        make_row(guide_id="Lib_Crop_2", guide_chr="chr5", guide_start="900000",
+                 guide_end="900020", intended_target_start="900000", intended_target_end="900020"),
+    ]
+    issues = validate_df(df_from(*rows))
+    assert not has_error(issues, "intended_target_start", "span all guides")
+
+
+def test_c3_uniform_prefix_huge_span_not_flagged():
+    # Same prefix, one chromosome, but guides > C3_MAX_ELEMENT_BP apart → not one element.
+    rows = [
+        make_row(guide_id="Lib_Crop_1", guide_chr="chr1", guide_start="1000",
+                 guide_end="1020", intended_target_start="1000", intended_target_end="1020"),
+        make_row(guide_id="Lib_Crop_2", guide_chr="chr1", guide_start="5000000",
+                 guide_end="5000020", intended_target_start="5000000", intended_target_end="5000020"),
+    ]
+    issues = validate_df(df_from(*rows))
+    assert not has_error(issues, "intended_target_start", "span all guides")
+
+
+def test_c3_edge_overhang_within_tolerance_clean():
+    # A designed element window with an edge guide overhanging by ≤ 50 bp is not an error.
+    rows = [
+        make_row(guide_id="GENE1_TSS_1", guide_start="895", guide_end="915",
+                 intended_target_start="900", intended_target_end="1400"),
+        make_row(guide_id="GENE1_TSS_2", guide_start="1300", guide_end="1320",
+                 intended_target_start="900", intended_target_end="1400"),
+    ]
+    issues = validate_df(df_from(*rows))
+    assert not has_error(issues, "intended_target_start", "span all guides")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # P1 — putative_target_genes
 # ══════════════════════════════════════════════════════════════════════════════
@@ -544,9 +583,16 @@ def test_p1_positive_control_distal_empty_ptg_is_error():
 
 
 def test_p1_positive_control_distal_valid_ptg_clean():
-    df = df_from(make_pc_row(putative_target_genes="ENSG00000000003"))
+    df = df_from(make_pc_row(putative_target_genes='["ENSG00000000003"]'))
     issues = validate_df(df)
     assert not errors(issues, "putative_target_genes")
+
+
+def test_p1_ptg_bare_value_not_array_is_error():
+    # spec types putative_target_genes as string[]; a bare ENSG id must be an array literal
+    df = df_from(make_pc_row(putative_target_genes="ENSG00000000003"))
+    issues = validate_df(df)
+    assert has_error(issues, "putative_target_genes", "array")
 
 
 def test_p1_positive_control_promoter_no_ptg_required():
@@ -558,14 +604,14 @@ def test_p1_positive_control_promoter_no_ptg_required():
     assert not has_error(issues, "putative_target_genes", "positive control")
 
 
-def test_p1_ptg_multiple_ensg_comma_separated_clean():
-    df = df_from(make_pc_row(putative_target_genes="ENSG00000000003,ENSG00000000004"))
+def test_p1_ptg_multiple_ensg_array_clean():
+    df = df_from(make_pc_row(putative_target_genes='["ENSG00000000003", "ENSG00000000004"]'))
     issues = validate_df(df)
     assert not errors(issues, "putative_target_genes")
 
 
 def test_p1_ptg_non_ensg_value_warns():
-    df = df_from(make_pc_row(putative_target_genes="TP53"))
+    df = df_from(make_pc_row(putative_target_genes='["TP53"]'))
     issues = validate_df(df)
     assert has_warning(issues, "putative_target_genes", "ENSG")
 

@@ -223,6 +223,24 @@ def main():
         df.loc[resolvable, "intended_target_name"].map(gene_map))
     note(f"  rewrote {resolvable.sum():,} rows to ENSG ids")
 
+    # ── 4. Blank intended_target_name on targeting=False rows ─────────────────
+    # Spec p.1: when targeting == False, intended_target_name (among others) "are not
+    # required and can be set to NaN or left empty". These rows carried their own guide_id
+    # as a self-referential placeholder, which names no target element; the non-targeting
+    # rows in the same file already leave it empty.
+    note("\n── 4. Blank intended_target_name where targeting == False ──")
+    not_targeting = df.targeting == "False"
+    placeholder = not_targeting & df.intended_target_name.notna()
+    by_type = df.loc[placeholder, "type"].value_counts().to_dict()
+    note(f"  {placeholder.sum()} of {not_targeting.sum()} targeting=False rows carry a "
+         f"placeholder: {by_type}")
+    if placeholder.any():
+        note(f"  e.g. {df.loc[placeholder, 'intended_target_name'].tolist()[:3]} → empty")
+    df.loc[not_targeting, "intended_target_name"] = pd.NA
+    assert df.loc[not_targeting, "intended_target_name"].isna().all()
+    note(f"  intended_target_name now empty on all {not_targeting.sum()} "
+         f"targeting=False rows")
+
     # ── Write ────────────────────────────────────────────────────────────────
     changed = (original.fillna("__NA__") != df.fillna("__NA__")).any(axis=1).sum()
     note(f"\n{changed:,} of {len(df):,} rows changed")

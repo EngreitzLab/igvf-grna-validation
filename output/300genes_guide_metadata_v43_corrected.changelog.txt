@@ -37,11 +37,16 @@ Read 1,926 rows from /Users/engreitz/Downloads/300genes_guide_metadata_v43_promo
   12 symbols had *_alt duplicate gene records, resolved to the primary copy: ['BAG6', 'CSNK2B', 'EHMT2', 'GPI', 'GTF2H4', 'LENG8', 'PAM16', 'PAXBP1', 'PSMB3', 'SMARCB1', 'TAF4', 'ZBTB22']
   rewrote 1,806 rows to ENSG ids
 
+── 4. Blank intended_target_name where targeting == False ──
+  60 of 120 targeting=False rows carry a placeholder: {'safe-targeting': 60}
+  e.g. ['SAFE_TARGETING_1017', 'SAFE_TARGETING_1044', 'SAFE_TARGETING_1105'] → empty
+  intended_target_name now empty on all 120 targeting=False rows
+
 1,866 of 1,926 rows changed
   guide_chr: 3 cells changed
   guide_start: 46 cells changed
   guide_end: 41 cells changed
-  intended_target_name: 1,806 cells changed
+  intended_target_name: 1,866 cells changed
   intended_target_chr: 2 cells changed
   intended_target_start: 8 cells changed
   intended_target_end: 34 cells changed

@@ -249,7 +249,110 @@ def test_t5b_whitespace_guide_start_treated_as_empty():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# T5c — guide window must span exactly the spacer (PAM excluded)
+#
+# Spec, guide_end: "should not include the PAM sequence".
+#
+# Dimensions:
+#   window_width:  == len(spacer)  |  == len(spacer)+len(pam)  |  neither
+#   strand:        "+" (PAM to the right)  |  "-" (PAM to the left)
+#   pam_length:    3 (NGG)  |  6 (NNGRRT)   — must not be hardcoded
+#   row_kind:      targeting (has coords)  |  safe-targeting (coords, targeting=False)
+#                  |  non-targeting (no coords, must be skipped)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize("strand", ["+", "-"])
+def test_t5c_window_equal_to_spacer_is_clean(strand):
+    df = df_from(make_row(spacer="A" * 20, guide_start="1000", guide_end="1020",
+                          strand=strand))
+    issues = validate_df(df)
+    for field in ("guide_start", "guide_end"):
+        assert not has_error(issues, field, "PAM"), (
+            f"Expected no PAM error for a spacer-width window (20 bp spacer, "
+            f"[1000,1020), strand {strand}); got a {field} error. Check the "
+            f"span == spacer_len comparison in T5c.")
+
+
+@pytest.mark.parametrize("strand,flagged,clean", [
+    ("+", "guide_end",   "guide_start"),   # PAM is 3' → right of the spacer in genome coords
+    ("-", "guide_start", "guide_end"),     # PAM is 3' → left of the spacer in genome coords
+])
+def test_t5c_pam_in_window_is_flagged_on_the_strand_appropriate_end(strand, flagged, clean):
+    df = df_from(make_row(spacer="A" * 20, guide_start="1000", guide_end="1023",
+                          strand=strand, pam="NGG"))
+    issues = validate_df(df)
+    assert has_error(issues, flagged, "include the PAM"), (
+        f"A 23 bp window around a 20 bp spacer on the '{strand}' strand puts the 3 bp PAM "
+        f"in {flagged}; expected an error on {flagged} but found none. "
+        f"Got: {[(i.field, i.message) for i in errors(issues)]}")
+    assert not has_error(issues, clean, "include the PAM"), (
+        f"The PAM is not in {clean} for a '{strand}'-strand guide, but T5c flagged it — "
+        f"the strand→end mapping is inverted.")
+
+
+def test_t5c_uses_actual_pam_length_not_hardcoded_three():
+    # 6 bp PAM (SaCas9 NNGRRT): window is spacer+6, so the length must come from the column
+    df = df_from(make_row(spacer="A" * 20, guide_start="1000", guide_end="1026",
+                          strand="+", pam="NNGRRT"))
+    issues = validate_df(df)
+    assert has_error(issues, "guide_end", "include the PAM"), (
+        "A 26 bp window around a 20 bp spacer with a 6 bp PAM should be recognised as "
+        "PAM-inclusive; T5c appears to hardcode a 3 bp PAM. "
+        f"Got: {[(i.field, i.message) for i in errors(issues)]}")
+
+
+def test_t5c_span_mismatch_unrelated_to_pam_is_error():
+    # off by 7 — neither len(spacer) nor len(spacer)+len(pam), so it is not a PAM problem
+    df = df_from(make_row(spacer="A" * 20, guide_start="1000", guide_end="1027",
+                          strand="+", pam="NGG"))
+    issues = validate_df(df)
+    assert has_error(issues, "guide_end", "not the PAM length"), (
+        "A 27 bp window around a 20 bp spacer with a 3 bp PAM matches neither the spacer "
+        "width nor spacer+PAM, and must still be reported as a coordinate error rather "
+        f"than passing silently. Got: {[(i.field, i.message) for i in errors(issues)]}")
+    assert not has_error(issues, "guide_end", "include the PAM"), (
+        "An unexplained 7 bp overhang must not be reported as a PAM-inclusion error.")
+
+
+def test_t5c_applies_to_safe_targeting_rows():
+    # safe-targeting rows carry coordinates with targeting=False, so the check must not be
+    # gated on targeting=True — this is where the 300-gene library's 60 such rows live
+    df = df_from(make_safe_row(spacer="C" * 19, guide_start="5000", guide_end="5022",
+                               strand="+", pam="NGG"))
+    issues = validate_df(df)
+    assert has_error(issues, "guide_end", "include the PAM"), (
+        "A safe-targeting row (targeting=False) with a 22 bp window around a 19 bp spacer "
+        "must still be flagged; T5c looks to be gated on targeting=True. "
+        f"Got: {[(i.field, i.message) for i in errors(issues)]}")
+
+
+def test_t5c_skips_rows_without_coordinates():
+    df = df_from(make_nt_row())
+    issues = validate_df(df)
+    for field in ("guide_start", "guide_end"):
+        assert not has_error(issues, field, "PAM"), (
+            f"A non-targeting row has no coordinates, so T5c must skip it; got a {field} "
+            f"error instead. Check the coords_ok guard.")
+
+
+def test_t5c_ignores_whitespace_around_spacer():
+    df = df_from(make_row(spacer="  " + "A" * 20 + " ", guide_start="1000",
+                          guide_end="1020"))
+    issues = validate_df(df)
+    assert not has_error(issues, "guide_end", "PAM"), (
+        "A padded 20 bp spacer measured 23 characters, so the window looked PAM-inclusive; "
+        "T5c must strip whitespace before taking len(spacer).")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # T6 — non-primary-assembly contigs
+#
+# Dimensions:
+#   contig_class:  primary (chr1..22,X,Y,M)  |  alt  |  unplaced  |  unlocalized
+#                  |  patch fix  |  decoy
+#   which_field:   guide_chr  |  intended_target_chr  |  both
+#   row_kind:      targeting  |  safe-targeting (targeting=False, has coords)
+#                  |  non-targeting (no coords)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.parametrize("contig", [
@@ -265,7 +368,9 @@ def test_t5b_whitespace_guide_start_treated_as_empty():
 def test_t6_non_primary_guide_chr_is_warning(contig):
     df = df_from(make_row(guide_chr=contig, intended_target_chr=contig))
     issues = validate_df(df)
-    assert has_warning(issues, "guide_chr", "non-primary-assembly")
+    assert has_warning(issues, "guide_chr", "non-primary-assembly"), (
+        f"{contig!r} is not a primary-assembly contig and must raise a guide_chr warning. "
+        f"Got warnings: {[(i.field, i.message) for i in warnings(issues)]}")
 
 
 @pytest.mark.parametrize("contig", [
@@ -274,16 +379,22 @@ def test_t6_non_primary_guide_chr_is_warning(contig):
 def test_t6_primary_contigs_are_clean(contig):
     df = df_from(make_row(guide_chr=contig, intended_target_chr=contig))
     issues = validate_df(df)
-    assert not has_warning(issues, "guide_chr", "non-primary-assembly")
-    assert not has_warning(issues, "intended_target_chr", "non-primary-assembly")
+    for field in ("guide_chr", "intended_target_chr"):
+        assert not has_warning(issues, field, "non-primary-assembly"), (
+            f"{contig!r} IS a primary-assembly contig but T6 flagged {field} — "
+            f"PRIMARY_CONTIG_RE is too strict.")
 
 
 def test_t6_flags_intended_target_chr_independently():
-    # guide on primary, intended window on an alt contig
+    # guide on primary, intended window on an alt contig: only the window is wrong
     df = df_from(make_row(guide_chr="chr6", intended_target_chr="chr6_GL000252v2_alt"))
     issues = validate_df(df)
-    assert has_warning(issues, "intended_target_chr", "non-primary-assembly")
-    assert not has_warning(issues, "guide_chr", "non-primary-assembly")
+    assert has_warning(issues, "intended_target_chr", "non-primary-assembly"), (
+        "intended_target_chr on an alt contig must be flagged even when guide_chr is "
+        f"primary. Got warnings: {[(i.field, i.message) for i in warnings(issues)]}")
+    assert not has_warning(issues, "guide_chr", "non-primary-assembly"), (
+        "guide_chr is chr6 (primary) and must not be flagged; T6 is not evaluating the "
+        "two columns independently.")
 
 
 def test_t6_applies_to_non_targeting_rows_too():
@@ -291,21 +402,29 @@ def test_t6_applies_to_non_targeting_rows_too():
     # must not be gated on targeting=True (SAFE_TARGETING_1656 regression)
     df = df_from(make_safe_row(guide_chr="chr17_KI270858v1_alt", intended_target_chr=""))
     issues = validate_df(df)
-    assert has_warning(issues, "guide_chr", "non-primary-assembly")
+    assert has_warning(issues, "guide_chr", "non-primary-assembly"), (
+        "A safe-targeting row (targeting=False) on an alt contig must be flagged; T6 looks "
+        f"to be gated on targeting=True. Got: {[(i.field, i.message) for i in warnings(issues)]}")
 
 
 def test_t6_empty_coords_are_not_flagged():
     df = df_from(make_nt_row())
     issues = validate_df(df)
-    assert not has_warning(issues, "guide_chr", "non-primary-assembly")
-    assert not has_warning(issues, "intended_target_chr", "non-primary-assembly")
+    for field in ("guide_chr", "intended_target_chr"):
+        assert not has_warning(issues, field, "non-primary-assembly"), (
+            f"A non-targeting row has an empty {field}, which must not be treated as a "
+            f"non-primary contig. Check the _is_nan_like guard in T6.")
 
 
 def test_t6_is_warning_not_error():
+    # the spec does not forbid alt contigs, so a legitimately alt library must still pass
     df = df_from(make_row(guide_chr="chr6_GL000252v2_alt",
                           intended_target_chr="chr6_GL000252v2_alt"))
     issues = validate_df(df)
-    assert not errors(issues, "guide_chr")
+    assert not errors(issues, "guide_chr"), (
+        "T6 must be warn-severity: the spec permits alt contigs, so flagging them as "
+        f"errors would fail valid libraries. Got errors: "
+        f"{[i.message for i in errors(issues, 'guide_chr')]}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

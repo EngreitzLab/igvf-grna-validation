@@ -7,8 +7,26 @@ Read 1,926 rows from /Users/engreitz/Downloads/300genes_guide_metadata_v43_promo
   CSNK2B_SGTN_04: description 'CSNK2B_SGTN_chr6_GL000256v2_alt' → 'CSNK2B_P1P2' (joins the CSNK2B promoter element)
   CSNK2B_SGTN_05: description 'CSNK2B_SGTN_chr6_GL000252v2_alt' → 'CSNK2B_P1P2' (joins the CSNK2B promoter element)
 
+── 1b. Trim PAM out of the guide window ──
+  81 rows carry the PAM inside [guide_start, guide_end)
+  strand '+': 38 rows — guide_end −= len(pam)
+  strand '-': 43 rows — guide_start += len(pam)
+  all 1,866 positioned rows now span exactly their spacer
+
 ── 2. Recompute element windows (window == span of guides in the group) ──
+  CCM2_P1P2 (7 guides on chr7): 45000165-45000344 → 45000165-45000344
+  CDKN1A_P1P2 (7 guides on chr6): 36678740-36678884 → 36678740-36678884
   CSNK2B_P1P2 (8 guides on chr6): 31666099-31666326 → 31665910-31666326
+  GOSR2_P1P2 (8 guides on chr17): 46923068-46923580 → 46923068-46923580
+  INO80E_P1P2 (8 guides on chr16): 29996246-29996408 → 29996246-29996405
+  INTS10_P1P2 (8 guides on chr8): 19817327-19817864 → 19817327-19817864
+  ITGB1BP1_P1P2 (8 guides on chr2): 9423122-9423537 → 9423122-9423537
+  PIK3CA_P1P2 (8 guides on chr3): 179148372-179148788 → 179148372-179148788
+  PRMT5_P1 (8 guides on chr14): 22929168-22929571 → 22929168-22929568
+  SKIC8_P1P2 (8 guides on chr15): 78299158-78299781 → 78299158-78299778
+  SUZ12_P1P2 (8 guides on chr17): 31937136-31937387 → 31937136-31937387
+  TLNRD1_P1P2 (8 guides on chr15): 81000927-81001548 → 81000927-81001548
+  TP53_P1P2 (8 guides on chr17): 7687057-7687528 → 7687057-7687525
   window rule holds for 299/299 groups
 
 ── 3. intended_target_name: gene symbol → GENCODE v43 ENSG ──
@@ -19,14 +37,14 @@ Read 1,926 rows from /Users/engreitz/Downloads/300genes_guide_metadata_v43_promo
   12 symbols had *_alt duplicate gene records, resolved to the primary copy: ['BAG6', 'CSNK2B', 'EHMT2', 'GPI', 'GTF2H4', 'LENG8', 'PAM16', 'PAXBP1', 'PSMB3', 'SMARCB1', 'TAF4', 'ZBTB22']
   rewrote 1,806 rows to ENSG ids
 
-1,807 of 1,926 rows changed
+1,866 of 1,926 rows changed
   guide_chr: 3 cells changed
-  guide_start: 3 cells changed
-  guide_end: 3 cells changed
+  guide_start: 46 cells changed
+  guide_end: 41 cells changed
   intended_target_name: 1,806 cells changed
   intended_target_chr: 2 cells changed
   intended_target_start: 8 cells changed
-  intended_target_end: 2 cells changed
+  intended_target_end: 34 cells changed
   description: 2 cells changed
 
 Wrote output/300genes_guide_metadata_v43_corrected.tsv

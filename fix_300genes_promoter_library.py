@@ -128,7 +128,39 @@ def main():
             df.loc[i, "description"] = target_desc
             df.loc[i, "intended_target_name"] = "CSNK2B"
 
-    # ── 2. Recompute element windows for groups touched by the lift ───────────
+    # ── 1b. Trim the PAM out of the guide window (check T5c) ──────────────────
+    # Spec, guide_end: "should not include the PAM sequence". Rows whose window is
+    # len(pam) bp wider than the spacer carry the PAM inside it. The PAM is 3' of the
+    # spacer on the targeted strand, so in genome coordinates it is to the right of a
+    # "+" guide (trim guide_end) and to the left of a "-" guide (trim guide_start).
+    # verify_guide_coords_against_genome.py confirms this on all 84 affected rows: every
+    # "pam_included" row is strand "+" and every "pam_included_left" row is strand "-".
+    note("\n── 1b. Trim PAM out of the guide window ──")
+    span = df.guide_end.astype("Int64") - df.guide_start.astype("Int64")
+    spacer_len = df.spacer.str.strip().str.len()
+    pam_len = df.pam.fillna("").str.strip().str.len()
+    pam_in_window = (span == spacer_len + pam_len) & (pam_len > 0)
+    note(f"  {pam_in_window.sum()} rows carry the PAM inside [guide_start, guide_end)")
+
+    trimmed_ids = []
+    for strand, col, op in (("+", "guide_end", -1), ("-", "guide_start", +1)):
+        hit = pam_in_window & (df.strand == strand)
+        if not hit.any():
+            continue
+        note(f"  strand '{strand}': {hit.sum()} rows — {col} {'−' if op < 0 else '+'}= "
+             f"len(pam)")
+        df.loc[hit, col] = (df.loc[hit, col].astype(int)
+                            + op * pam_len[hit].astype(int)).astype(str)
+        trimmed_ids += df.loc[hit, "guide_id"].tolist()
+
+    new_span = df.guide_end.astype("Int64") - df.guide_start.astype("Int64")
+    still_off = (new_span != spacer_len) & df.guide_start.notna()
+    assert not still_off.any(), \
+        f"{still_off.sum()} rows still not spacer-width: {df.loc[still_off, 'guide_id'].tolist()[:5]}"
+    note(f"  all {int(df.guide_start.notna().sum()):,} positioned rows now span exactly "
+         f"their spacer")
+
+    # ── 2. Recompute element windows for groups touched by the lift or the trim ─
     note("\n── 2. Recompute element windows (window == span of guides in the group) ──")
     is_targeting = df.type == "targeting"
     tdf = df[is_targeting].copy()
@@ -136,7 +168,7 @@ def main():
     tdf["gend"] = tdf.guide_end.astype(int)
 
     touched_groups = set(
-        df.loc[df.guide_id.isin(lifted_ids) & is_targeting, "description"])
+        df.loc[df.guide_id.isin(lifted_ids + trimmed_ids) & is_targeting, "description"])
     for desc in sorted(touched_groups):
         sub = tdf[tdf.description == desc]
         chrs = set(sub.guide_chr)

@@ -18,7 +18,7 @@ def make_row(**overrides) -> dict:
     """Return a fully valid targeting row dict, with keyword overrides applied."""
     base = {
         "guide_id":               "g1",
-        "spacer":                 "ACGTACGTACGT",
+        "spacer":                 "ACGTACGTACGTACGTACGT",
         "targeting":              "True",
         "type":                   "targeting",
         "guide_chr":              "chr1",
@@ -41,7 +41,7 @@ def make_nt_row(**overrides) -> dict:
     """Return a fully valid non-targeting row dict, with keyword overrides applied."""
     base = {
         "guide_id":               "nt1",
-        "spacer":                 "TTTTTTTTTTTT",
+        "spacer":                 "TTTTTTTTTTTTTTTTTTTT",
         "targeting":              "False",
         "type":                   "non-targeting",
         "guide_chr":              "",
@@ -64,7 +64,7 @@ def make_safe_row(**overrides) -> dict:
     """Return a fully valid safe-targeting row dict, with keyword overrides applied."""
     base = {
         "guide_id":               "st1",
-        "spacer":                 "CCCCCCCCCCCC",
+        "spacer":                 "CCCCCCCCCCCCCCCCCCCC",
         "targeting":              "False",
         "type":                   "safe-targeting",
         "guide_chr":              "chr2",
@@ -87,7 +87,7 @@ def make_pc_row(**overrides) -> dict:
     """Return a valid positive-control row targeting a distal element."""
     base = {
         "guide_id":               "pc1",
-        "spacer":                 "GGGGGGGGGGGG",
+        "spacer":                 "GGGGGGGGGGGGGGGGGGGG",
         "targeting":              "True",
         "type":                   "positive control",
         "guide_chr":              "chr3",

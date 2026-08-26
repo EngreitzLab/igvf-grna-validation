@@ -39,6 +39,7 @@ python3 validate_grna_file.py <input_file.tsv.gz> --json-out problems.json
 | T3 | targeting | `non-targeting` and `safe-targeting` rows must have `targeting=False` |
 | T4 | strand | Non-empty and `+`/`-` for targeting rows |
 | T5 | guide_chr/start/end | Non-empty for targeting rows |
+| T5c | guide_start, guide_end | `[guide_start, guide_end)` must span exactly the spacer — the spec excludes the PAM from the guide window. A window that is `len(pam)` bp wider is reported against the end that carries the PAM, which follows from the strand: the PAM is 3′ of the spacer, so it lies to the *right* of a `+` guide (`guide_end`) and to the *left* of a `-` guide (`guide_start`). Uses the row's own `pam` length, so non-NGG PAMs work. A width mismatch that is not the PAM length is reported separately |
 | T6 | guide_chr, intended_target_chr | Warns when a coordinate sits on a non-primary-assembly contig (`*_alt`, `*_fix`, `*_random`, `chrUn_*`, `chrEBV`). Such guides are invisible to primary-assembly analysis, and GENCODE genes on alt contigs carry non-canonical ENSG IDs — so an alt-contig promoter guide silently groups under the wrong gene. Checked on every row with a coordinate, including `targeting=False` |
 | E1 | genomic_element | Non-empty for targeting rows |
 | E2 | genomic_element | Values are from the spec enum: `promoter`, `enhancer`, `insulator`, `silencer`, `distal element`, `splice site`, `gene`, `variant` |

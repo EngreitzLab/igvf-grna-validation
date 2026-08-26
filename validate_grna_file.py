@@ -327,6 +327,48 @@ def validate_df(df: pd.DataFrame) -> list:
                     count=int(non_numeric.sum()),
                 ))
 
+    # ── T5c: [guide_start, guide_end) must span exactly the spacer, PAM excluded ─
+    # Spec, guide_end: "should not include the PAM sequence". A library that appends the PAM
+    # to the guide window is detectable without a genome: the window is then len(pam) bp
+    # wider than the spacer. Which end carries the PAM follows from the strand — the PAM is
+    # 3' of the spacer on the targeted strand, so in genome coordinates it sits to the right
+    # of a "+" guide and to the left of a "-" guide.
+    coords_ok = (~_is_nan_like(df["guide_start"]) & ~_is_nan_like(df["guide_end"])
+                 & pd.to_numeric(df["guide_start"], errors="coerce").notna()
+                 & pd.to_numeric(df["guide_end"], errors="coerce").notna()
+                 & ~_is_nan_like(df["spacer"]))
+    if coords_ok.any():
+        span = (pd.to_numeric(df["guide_end"], errors="coerce")
+                - pd.to_numeric(df["guide_start"], errors="coerce"))
+        spacer_len = df["spacer"].str.strip().str.len()
+        pam_len = df["pam"].fillna("").str.strip().str.len() if "pam" in df.columns else 0
+
+        pam_in_window = coords_ok & (pam_len > 0) & (span == spacer_len + pam_len)
+        for strand, col, side in (("+", "guide_end", "end"), ("-", "guide_start", "start")):
+            hit = pam_in_window & (df["strand"] == strand)
+            if hit.any():
+                issues.append(Issue(
+                    col, "error",
+                    f"{hit.sum():,} rows on the '{strand}' strand include the PAM in "
+                    f"guide_{side}: guide_end - guide_start is len(spacer) + len(pam). "
+                    f"The spec excludes the PAM from the guide window — "
+                    f"e.g. {df.loc[hit, 'guide_id'].tolist()[:3]}",
+                    count=int(hit.sum()),
+                    examples=df.loc[hit, "guide_id"].tolist()[:5],
+                    fix_type="fix_trim_pam_from_guide_window",
+                ))
+
+        other = coords_ok & (span != spacer_len) & ~pam_in_window
+        if other.any():
+            ex = df.loc[other, ["guide_id", "guide_start", "guide_end", "spacer"]].head(3)
+            issues.append(Issue(
+                "guide_end", "error",
+                f"{other.sum():,} rows where guide_end - guide_start != len(spacer) and the "
+                f"difference is not the PAM length: "
+                f"{[(r.guide_id, int(r.guide_end) - int(r.guide_start), len(r.spacer)) for r in ex.itertuples()]}",
+                count=int(other.sum()),
+            ))
+
     # ── T6: guide_chr / intended_target_chr should be primary-assembly contigs ─
     # Guides placed on alt haplotypes, patch scaffolds or unplaced contigs are invisible
     # to primary-assembly analysis, and GENCODE genes on those contigs carry non-canonical

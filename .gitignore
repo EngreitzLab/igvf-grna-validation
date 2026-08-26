@@ -1,2 +1,5 @@
 .DS_Store
 input/IGVFFI9573KOZR.gtf.gz
+input/GRCh38_ucsc_IGVFFI6815WBWB.fasta.gz
+__pycache__/
+*.py[cod]

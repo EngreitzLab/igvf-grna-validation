@@ -1,0 +1,13 @@
+{
+  "input_file": "/Users/engreitz/Downloads/300genes_guide_metadata_v43_promoter_fixed.tsv",
+  "total_rows": 1926,
+  "issues": [
+    {
+      "field": "intended_target_name",
+      "severity": "error",
+      "message": "1,806 targeting rows with genomic_element='promoter' have non-ENSG intended_target_name (expected ENSG ID): ['ACAA1', 'ACTL7B', 'ACVR1B', 'ACVR2A', 'ACVR2B']",
+      "count": 1806,
+      "fix_type": null
+    }
+  ]
+}

@@ -75,6 +75,11 @@ GE_NEEDS_PTG = {"enhancer", "insulator", "silencer", "distal element"}
 
 ENSG_RE   = re.compile(r"^ENSG\d+$")
 COORD_RE  = re.compile(r"^chr\S+:\d+-\d+$")
+
+# A primary-assembly GRCh38 contig: chr1..chr22, chrX, chrY, chrM. Everything else
+# (chr6_GL000252v2_alt, chr17_KI270858v1_alt, chrUn_*, *_random, *_fix, chrEBV) is a
+# non-primary contig — see T6.
+PRIMARY_CONTIG_RE = re.compile(r"^chr([1-9]|1[0-9]|2[0-2]|X|Y|M)$")
 VALID_STRAND = {"+", "-"}
 
 
@@ -321,6 +326,31 @@ def validate_df(df: pd.DataFrame) -> list:
                     f"{non_numeric.sum():,} targeting=True rows have non-numeric {col}: {examples}",
                     count=int(non_numeric.sum()),
                 ))
+
+    # ── T6: guide_chr / intended_target_chr should be primary-assembly contigs ─
+    # Guides placed on alt haplotypes, patch scaffolds or unplaced contigs are invisible
+    # to primary-assembly analysis, and GENCODE genes on those contigs carry non-canonical
+    # ENSG IDs — so an alt-contig promoter guide silently groups under the wrong gene ID.
+    # Applies to every row with a coordinate, not just targeting=True, since safe-targeting
+    # guides also carry guide positions.
+    for col in ["guide_chr", "intended_target_chr"]:
+        if col not in df.columns:
+            continue
+        has_coord = ~_is_nan_like(df[col])
+        non_primary = has_coord & ~df[col].str.match(PRIMARY_CONTIG_RE)
+        if non_primary.any():
+            contigs = sorted(df.loc[non_primary, col].unique().tolist())
+            examples = df.loc[non_primary, "guide_id"].tolist()[:5]
+            issues.append(Issue(
+                col, "warn",
+                f"{non_primary.sum():,} rows have a non-primary-assembly {col} "
+                f"(alt/patch/unplaced contig): {contigs[:5]} — e.g. {examples}. "
+                f"Lift these to primary-assembly coordinates, or blank the position "
+                f"fields if the guide is targeting=False.",
+                count=int(non_primary.sum()),
+                examples=examples,
+                fix_type="fix_non_primary_contig",
+            ))
 
     # ── E1: genomic_element must be non-empty for targeting=True rows ─────────
     ge_empty = is_true & _is_nan_like(df["genomic_element"])

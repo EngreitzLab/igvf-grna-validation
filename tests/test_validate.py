@@ -249,6 +249,66 @@ def test_t5b_whitespace_guide_start_treated_as_empty():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# T6 — non-primary-assembly contigs
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.parametrize("contig", [
+    "chr6_GL000252v2_alt",     # alt haplotype
+    "chr17_KI270858v1_alt",
+    "chr1_KI270762v1_alt",
+    "chr15_KI270905v1_alt",
+    "chrUn_GL000195v1",        # unplaced
+    "chr1_KI270706v1_random",  # unlocalized
+    "chr2_KN538363v1_fix",     # patch scaffold
+    "chrEBV",                  # decoy
+])
+def test_t6_non_primary_guide_chr_is_warning(contig):
+    df = df_from(make_row(guide_chr=contig, intended_target_chr=contig))
+    issues = validate_df(df)
+    assert has_warning(issues, "guide_chr", "non-primary-assembly")
+
+
+@pytest.mark.parametrize("contig", [
+    "chr1", "chr9", "chr10", "chr22", "chrX", "chrY", "chrM",
+])
+def test_t6_primary_contigs_are_clean(contig):
+    df = df_from(make_row(guide_chr=contig, intended_target_chr=contig))
+    issues = validate_df(df)
+    assert not has_warning(issues, "guide_chr", "non-primary-assembly")
+    assert not has_warning(issues, "intended_target_chr", "non-primary-assembly")
+
+
+def test_t6_flags_intended_target_chr_independently():
+    # guide on primary, intended window on an alt contig
+    df = df_from(make_row(guide_chr="chr6", intended_target_chr="chr6_GL000252v2_alt"))
+    issues = validate_df(df)
+    assert has_warning(issues, "intended_target_chr", "non-primary-assembly")
+    assert not has_warning(issues, "guide_chr", "non-primary-assembly")
+
+
+def test_t6_applies_to_non_targeting_rows_too():
+    # safe-targeting rows carry guide positions but have targeting=False, so the check
+    # must not be gated on targeting=True (SAFE_TARGETING_1656 regression)
+    df = df_from(make_safe_row(guide_chr="chr17_KI270858v1_alt", intended_target_chr=""))
+    issues = validate_df(df)
+    assert has_warning(issues, "guide_chr", "non-primary-assembly")
+
+
+def test_t6_empty_coords_are_not_flagged():
+    df = df_from(make_nt_row())
+    issues = validate_df(df)
+    assert not has_warning(issues, "guide_chr", "non-primary-assembly")
+    assert not has_warning(issues, "intended_target_chr", "non-primary-assembly")
+
+
+def test_t6_is_warning_not_error():
+    df = df_from(make_row(guide_chr="chr6_GL000252v2_alt",
+                          intended_target_chr="chr6_GL000252v2_alt"))
+    issues = validate_df(df)
+    assert not errors(issues, "guide_chr")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # E1-E3 — genomic_element
 # ══════════════════════════════════════════════════════════════════════════════
 

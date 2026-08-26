@@ -1,0 +1,32 @@
+Read 1,926 rows from /Users/engreitz/Downloads/300genes_guide_metadata_v43_promoter_fixed.tsv
+
+── 1. Lift alt-contig guides to primary assembly ──
+  CSNK2B_SGTN_04: chr6_GL000256v2_alt:2965191-2965214 → chr6:31665910-31665930 (-) [spacer-only, 20 bp]
+  CSNK2B_SGTN_05: chr6_GL000252v2_alt:2913755-2913778 → chr6:31665987-31666007 (-) [spacer-only, 20 bp]
+  SAFE_TARGETING_1656: chr17_KI270858v1_alt:6261-6283 → chr17:71590778-71590797 (+) [spacer-only, 19 bp]
+  CSNK2B_SGTN_04: description 'CSNK2B_SGTN_chr6_GL000256v2_alt' → 'CSNK2B_P1P2' (joins the CSNK2B promoter element)
+  CSNK2B_SGTN_05: description 'CSNK2B_SGTN_chr6_GL000252v2_alt' → 'CSNK2B_P1P2' (joins the CSNK2B promoter element)
+
+── 2. Recompute element windows (window == span of guides in the group) ──
+  CSNK2B_P1P2 (8 guides on chr6): 31666099-31666326 → 31665910-31666326
+  window rule holds for 299/299 groups
+
+── 3. intended_target_name: gene symbol → GENCODE v43 ENSG ──
+  loaded 60,903 unique primary-assembly gene_name → ENSG mappings
+  314 symbols still ambiguous on the primary assembly (not used unless referenced): ['DDX11L2', 'U6', 'Y_RNA', 'SNORA70', 'CROCCP3']
+  1,806 promoter rows across 298 distinct symbols
+  resolved: 298   unresolved: 0   primary-assembly collisions: 0
+  12 symbols had *_alt duplicate gene records, resolved to the primary copy: ['BAG6', 'CSNK2B', 'EHMT2', 'GPI', 'GTF2H4', 'LENG8', 'PAM16', 'PAXBP1', 'PSMB3', 'SMARCB1', 'TAF4', 'ZBTB22']
+  rewrote 1,806 rows to ENSG ids
+
+1,807 of 1,926 rows changed
+  guide_chr: 3 cells changed
+  guide_start: 3 cells changed
+  guide_end: 3 cells changed
+  intended_target_name: 1,806 cells changed
+  intended_target_chr: 2 cells changed
+  intended_target_start: 8 cells changed
+  intended_target_end: 2 cells changed
+  description: 2 cells changed
+
+Wrote output/300genes_guide_metadata_v43_corrected.tsv

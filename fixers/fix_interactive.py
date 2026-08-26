@@ -9,7 +9,7 @@ Then walks through each fixable issue, prompts the user to apply or skip,
 and writes the corrected file.
 
 Usage:
-    python3 fix_interactive.py <input_file> --problems <problems.json> [--output <output_file>]
+    python3 fixers/fix_interactive.py <input_file> --problems <problems.json> [--output <output_file>]
 
 If --output is not given, defaults to output/<basename>.tsv.gz
 """

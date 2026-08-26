@@ -12,7 +12,7 @@ Enhancer rows (130 GATA1 tiling guides) are left untouched — their per-window 
 and intended_target_name are already correct.
 
 Usage:
-    python3 fix_IGVFFI1207NRVS.py
+    python3 fixers/fix_IGVFFI1207NRVS.py
 """
 
 import os
@@ -22,6 +22,9 @@ import sys
 import pandas as pd
 
 # ── Imports from shared modules ────────────────────────────────────────────────
+# validate_grna_file lives at the repo root, one level up from fixers/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from fix_interactive import fix_targeting_case, fix_description_from_guide_id, COLUMN_ORDER
 from validate_grna_file import load_gene_map, GTF_PATH, GTF_URL, download_gtf
 

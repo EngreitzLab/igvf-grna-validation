@@ -76,28 +76,37 @@ Rows: 220  |  targeting: 130  |  positive control: 60  |  non-targeting: 20  |  
   1 error category, 0 warning categories found
 ```
 
-The optional `--json-out` flag writes a machine-readable report for use with `fix_interactive.py`.
+The optional `--json-out` flag writes a machine-readable report for use with `fixers/fix_interactive.py`.
 
 ---
 
-### `fix_interactive.py` — Interactive fixer
+### `fixers/fix_interactive.py` — Interactive fixer
 
 Reads a JSON problem report produced by `validate_grna_file.py --json-out` and offers each fixable issue interactively. Shared fix functions are also imported by the per-file scripts below.
 
 ```bash
-python3 fix_interactive.py <input_file> --problems <report.json> [--output <output.tsv.gz>]
+python3 fixers/fix_interactive.py <input_file> --problems <report.json> [--output <output.tsv.gz>]
 ```
 
-### Per-file fix scripts
+### Per-file fix scripts — `fixers/`
 
 Each file with non-trivial issues has a dedicated script that applies targeted corrections and writes a corrected TSV.gz to `output/`.
 
+**Run every fixer from the repo root** — they resolve `input/` and `output/` relative to the working directory:
+
+```bash
+python3 fixers/fix_IGVFFI1207NRVS.py
+```
+
 | Script | File | Notes |
 |---|---|---|
-| `fix_IGVFFI9754AGFB.py` | 37,637-row screen | Patch script applied on top of `fix_grna_file.py` output |
-| `fix_IGVFFI1207NRVS.py` | 220-row GATA1 enhancer screen | ENSG lookup for 5 TSS control genes |
-| `fix_IGVFFI4290JQVQ.py` | 296-row EC enhancer screen | ENSG lookup for 5 gene-element targets |
-| `fix_IGVFFI0580WJFK.py` | 16,201-row WTC11 random screen | TSS intersection against GENCODE v43 for 83 promoter windows |
+| `fixers/fix_grna_file.py` | multi-file batch | Automated corrections applied across files |
+| `fixers/fix_easy_files.py` | low-issue files | Files needing only mechanical fixes |
+| `fixers/fix_IGVFFI9754AGFB.py` | 37,637-row screen | Patch script applied on top of `fix_grna_file.py` output |
+| `fixers/fix_IGVFFI1207NRVS.py` | 220-row GATA1 enhancer screen | ENSG lookup for 5 TSS control genes |
+| `fixers/fix_IGVFFI4290JQVQ.py` | 296-row EC enhancer screen | ENSG lookup for 5 gene-element targets |
+| `fixers/fix_IGVFFI0580WJFK.py` | 16,201-row WTC11 random screen | TSS intersection against GENCODE v43 for 83 promoter windows |
+| `fixers/fix_300genes_promoter_library.py` | 1,926-row 300-gene promoter library | Alt-contig liftover, PAM trim, element-window recompute, symbol→ENSG |
 
 ---
 

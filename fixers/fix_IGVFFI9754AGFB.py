@@ -24,7 +24,7 @@ Input:  output/IGVFFI9754AGFB.tsv.gz  (existing broken output)
 Output: output/IGVFFI9754AGFB.tsv.gz  (overwrite in place)
 
 Usage:
-    python3 fix_IGVFFI9754AGFB.py
+    python3 fixers/fix_IGVFFI9754AGFB.py
 """
 
 import os

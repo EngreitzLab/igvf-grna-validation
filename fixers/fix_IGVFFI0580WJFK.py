@@ -23,7 +23,7 @@ Issue flagged but NOT fixed:
   5. 677 targeting rows with empty genomic_element + empty intended_target_name
 
 Usage:
-    python3 fix_IGVFFI0580WJFK.py
+    python3 fixers/fix_IGVFFI0580WJFK.py
 """
 
 import bisect
@@ -35,6 +35,9 @@ import sys
 import pandas as pd
 
 # ── Imports from shared modules ────────────────────────────────────────────────
+# validate_grna_file lives at the repo root, one level up from fixers/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 from fix_interactive import fix_targeting_case, COLUMN_ORDER, _is_nan_like
 from validate_grna_file import GTF_PATH, GTF_URL, download_gtf
 

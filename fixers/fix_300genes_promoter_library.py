@@ -20,7 +20,7 @@ Three corrections, in order (each depends on the previous):
               copy (every collision here is a primary gene shadowed by *_alt duplicates).
 
 Usage:
-    python3 fix_300genes_promoter_library.py <input.tsv> \
+    python3 fixers/fix_300genes_promoter_library.py <input.tsv> \
         --gtf input/IGVFFI9573KOZR.gtf.gz \
         --coord-verification problems/coord_verification.json \
         --out output/300genes_guide_metadata_v43_corrected.tsv
